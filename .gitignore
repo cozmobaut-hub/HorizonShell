@@ -1,0 +1,7 @@
+debian/.debhelper/
+debian/horizonshell/
+debian/horizonshell-dbgsym/
+*.deb
+*.build
+*.buildinfo
+*.changes
