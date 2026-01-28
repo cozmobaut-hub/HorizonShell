@@ -1,7 +1,7 @@
 CC      ?= gcc
 CFLAGS  ?= -Wall -Wextra -g
 
-PREFIX  ?= /usr/local
+PREFIX  ?= /usr
 BINDIR  ?= $(PREFIX)/bin
 
 SRC_DIR := src
@@ -36,13 +36,12 @@ clean:
 	rm -f $(HSH_BIN) $(HSH_SETUPBIN)
 	rm -f $(HOME)/.config/hsh/config $(HOME)/.config/hsh/aliases
 
-
 .PHONY: install
 install: $(HSH_BIN) $(HSH_SETUPBIN)
-	mkdir -p $(BINDIR)
-	install -m 0755 $(HSH_BIN) $(BINDIR)/hsh
-	install -m 0755 $(HSH_SETUPBIN) $(BINDIR)/hsh-setup
+	mkdir -p "$(DESTDIR)$(BINDIR)"
+	install -m 0755 $(HSH_BIN) "$(DESTDIR)$(BINDIR)/hsh"
+	install -m 0755 $(HSH_SETUPBIN) "$(DESTDIR)$(BINDIR)/hsh-setup"
 
 .PHONY: uninstall
 uninstall:
-	rm -f $(BINDIR)/hsh $(BINDIR)/hsh-setup
+	rm -f "$(BINDIR)/hsh" "$(BINDIR)/hsh-setup"

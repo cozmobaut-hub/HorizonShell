@@ -1,0 +1,13 @@
+Source: horizonshell
+Section: shells
+Priority: optional
+Maintainer: Austin Haas (cozmobaut@gmail.com)
+Standards-Version: 4.6.0
+Build-Depends: debhelper-compat (= 13)
+
+Package: horizonshell
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: HorizonShell - a simple hybrid shell with status bar and system-aware builtins
+ A small, hackable shell written in C with a configurable status bar,
+ system-aware builtins (sys, fs, net, ps), and alias support.

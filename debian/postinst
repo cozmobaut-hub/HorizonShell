@@ -1,0 +1,19 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        # register hsh as a valid shell
+        if command -v hsh >/dev/null 2>&1; then
+            SHELL_PATH="$(command -v hsh)"
+            if [ -f /etc/shells ] && ! grep -qx "$SHELL_PATH" /etc/shells; then
+                echo "$SHELL_PATH" >> /etc/shells
+            fi
+            echo "HorizonShell installed."
+            echo "To use it as your default shell, run:"
+            echo "  chsh -s $SHELL_PATH"
+        fi
+        ;;
+esac
+
+exit 0

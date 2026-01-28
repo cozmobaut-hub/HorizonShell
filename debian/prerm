@@ -1,0 +1,22 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    remove|purge)
+        # Attempt to remove from /etc/shells
+        if command -v hsh >/dev/null 2>&1; then
+            SHELL_PATH="$(command -v hsh)"
+        else
+            SHELL_PATH="/usr/bin/hsh"
+        fi
+
+        if [ -f /etc/shells ]; then
+            tmpfile=$(mktemp)
+            grep -vx "$SHELL_PATH" /etc/shells > "$tmpfile" || true
+            cat "$tmpfile" > /etc/shells
+            rm -f "$tmpfile"
+        fi
+        ;;
+esac
+
+exit 0
