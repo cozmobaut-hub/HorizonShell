@@ -1,7 +1,7 @@
 Source: horizonshell
 Section: shells
 Priority: optional
-Maintainer: Austin Haas (cozmobaut@gmail.com)
+Maintainer: Austin Haas <cozmobaut.com>
 Standards-Version: 4.6.0
 Build-Depends: debhelper-compat (= 13)
 
