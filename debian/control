@@ -1,13 +1,17 @@
 Source: horizonshell
 Section: shells
 Priority: optional
-Maintainer: Austin Haas <cozmobaut.com>
-Standards-Version: 4.6.0
+Maintainer: Austin Haas <cozmobaut@gmail.com>
+Standards-Version: 4.7.0
 Build-Depends: debhelper-compat (= 13)
+Homepage: https://github.com/cozmobaut-hub/HorizonShell
+Rules-Requires-Root: no
 
 Package: horizonshell
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: HorizonShell - a simple hybrid shell with status bar and system-aware builtins
- A small, hackable shell written in C with a configurable status bar,
- system-aware builtins (sys, fs, net, ps), and alias support.
+Description: modern interactive shell for Linux
+ HorizonShell is a small, hackable POSIX shell written in C with a
+ configurable status bar, simple pipelines, and system-aware builtins.
+ It is designed for experimentation and customization rather than
+ full POSIX shell scripting compatibility.
