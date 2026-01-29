@@ -3,27 +3,9 @@ Upstream-Name: HorizonShell
 Source: https://github.com/cozmobaut-hub/HorizonShell
 Files-Excluded: bin
 Repackaged-Source: repackaged to remove binary
- bin
-Repackaged-Source: repackaged to remove binary
-Files-Excluded: bin
-Repackaged-Source: repackaged to remove binary
-Files-Excluded: bin
-Repackaged-Source: repackaged to remove binary
-Files-Excluded: bin
-Repackaged-Source: repackaged to remove binary
-Files-Excluded: bin
-Repackaged-Source: repackaged to remove binary
-Files-Excluded: bin
-Repackaged-Source: repackaged to remove binary
-
-
-
-
-
-
 
 Files: *
-Copyright: 2024-2026, Austin Haas <cozmobaut@gmail.com>
+Copyright: 2024-2026, Austin Haas <haustin8texas@proton.me>
 License: MIT
 
 License: MIT
