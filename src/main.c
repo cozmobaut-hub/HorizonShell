@@ -44,6 +44,8 @@
 static void hsh_loop(const struct hsh_config *cfg,
                      struct hsh_alias *aliases, int alias_count);
 static char *hsh_read_line(void);
+static int  hsh_run_script(FILE *f, const struct hsh_config *cfg,
+                           struct hsh_alias *aliases, int alias_count);
 
 /* builtin handlers (used by parser.c via extern prototypes there) */
 int hsh_builtin_help(char **args);
@@ -55,7 +57,7 @@ int hsh_builtin_config(char **args);
 int hsh_builtin_alias(char **args);
 int hsh_builtin_cd(char **args);
 
-int main(void) {
+int main(int argc, char **argv) {
     char *home = getenv("HOME");
     if (!home) {
         fprintf(stderr, "hsh: HOME not set\n");
@@ -99,6 +101,21 @@ int main(void) {
         fprintf(stderr, "hsh: failed to load aliases\n");
     }
 
+    /* script mode: hsh myscript.hsh */
+    if (argc > 1) {
+        FILE *f = fopen(argv[1], "r");
+        if (!f) {
+            perror("hsh: fopen script");
+            hsh_free_aliases(aliases, alias_count);
+            return 1;
+        }
+        int rc = hsh_run_script(f, &cfg, aliases, alias_count);
+        fclose(f);
+        hsh_free_aliases(aliases, alias_count);
+        return rc;
+    }
+
+    /* interactive mode */
     hsh_loop(&cfg, aliases, alias_count);
 
     hsh_free_aliases(aliases, alias_count);
@@ -149,6 +166,55 @@ static void hsh_loop(const struct hsh_config *cfg,
     printf("\n");
 }
 
+/* script mode: run each non-comment line through hsh_run_line */
+static int hsh_run_script(FILE *f, const struct hsh_config *cfg,
+                          struct hsh_alias *aliases, int alias_count) {
+    char *line = NULL;
+    size_t sz = 0;
+    int status = 1;
+
+    while (getline(&line, &sz, f) != -1) {
+        /* skip comments and blank lines */
+        char *p = line;
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p == '#' || *p == '\n' || *p == '\0')
+            continue;
+
+        /* no readline, but we still want aliases */
+        char *expanded = NULL;
+        {
+            char *tmp = strdup(line);
+            if (!tmp) {
+                perror("hsh: strdup");
+                free(line);
+                return 1;
+            }
+            char *first = strtok(tmp, " \t\r\n");
+            if (first) {
+                expanded = hsh_expand_alias(aliases, alias_count, first);
+            }
+            free(tmp);
+        }
+
+        char *exec_line = line;
+        if (expanded) {
+            exec_line = expanded;
+        }
+
+        status = hsh_run_line(exec_line);
+
+        if (expanded)
+            free(expanded);
+
+        if (status == 0)  /* exit in script */
+            break;
+    }
+
+    free(line);
+    (void)cfg; /* cfg is unused here today, but kept for future script features */
+    return 0;
+}
+
 /* use GNU readline for line input + history */
 static char *hsh_read_line(void) {
     /* we already printed the prompt; give readline an empty one */
@@ -181,7 +247,7 @@ int hsh_builtin_cd(char **args) {
             fprintf(stderr, "cd: HOME not set\n");
             return 1;
         }
-        size_t len = strlen(home) + strlen(args[1]); /* ~ is replaced by home */
+        size_t len = strlen(home) + strlen(args[1]);
         char *buf = malloc(len);
         if (!buf) {
             perror("cd");
@@ -243,6 +309,10 @@ int hsh_builtin_help(char **args) {
         printf("Process commands:\n");
         printf("  ps top             - show top processes by CPU\n");
         printf("  ps find <pattern>  - list processes matching pattern\n\n");
+
+        printf("Scripting helpers:\n");
+        printf("  let NAME = VALUE   - set environment variable NAME to VALUE\n");
+        printf("  hsh script.hsh     - run script file line by line\n\n");
 
         printf("Usage:\n");
         printf("  <external-command> [args...]    - runs like a normal shell (ls, cat, etc.)\n");

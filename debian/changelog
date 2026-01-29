@@ -1,5 +1,6 @@
-horizonshell (0.1.1) UNRELEASED; urgency=medium
+horizonshell (0.1.2) UNRELEASED; urgency=medium
 
   * Bump version for native package format.
+  *  cd builtin and script mode added
 
- -- Austin Haas <haustin8texas@proton.me>  Wed, 28 Jan 2026 09:04:17 -0700
+ -- Austin Haas <haustin8texas@proton.me>  Wed, 28 Jan 2026 19:20:16 -0700
