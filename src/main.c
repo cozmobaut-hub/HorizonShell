@@ -21,6 +21,7 @@
  * THE SOFTWARE.
  */
 
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,6 +30,7 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <signal.h>
 
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -36,16 +38,25 @@
 #include "extras.h"
 #include "parser.h"
 
+
 #define HSH_NAME    "HorizonShell"
 #define HSH_VERSION "0.1.0"
 
 #define HSH_MAX_LINE   1024
+
+static volatile sig_atomic_t hsh_got_sigint = 0;
+
+static void hsh_sigint_handler(int sig) {
+    (void)sig;
+    hsh_got_sigint = 1;
+}
 
 static void hsh_loop(const struct hsh_config *cfg,
                      struct hsh_alias *aliases, int alias_count);
 static char *hsh_read_line(void);
 static int  hsh_run_script(FILE *f, const struct hsh_config *cfg,
                            struct hsh_alias *aliases, int alias_count);
+
 
 /* builtin handlers (used by parser.c via extern prototypes there) */
 int hsh_builtin_help(char **args);
@@ -56,6 +67,7 @@ int hsh_builtin_ps(char **args);
 int hsh_builtin_config(char **args);
 int hsh_builtin_alias(char **args);
 int hsh_builtin_cd(char **args);
+
 
 int main(int argc, char **argv) {
     char *home = getenv("HOME");
@@ -115,6 +127,14 @@ int main(int argc, char **argv) {
         return rc;
     }
 
+    /* install Ctrl-C handler for interactive mode */
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = hsh_sigint_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+    sigaction(SIGINT, &sa, NULL);
+
     /* interactive mode */
     hsh_loop(&cfg, aliases, alias_count);
 
@@ -122,12 +142,18 @@ int main(int argc, char **argv) {
     return 0;
 }
 
+
 static void hsh_loop(const struct hsh_config *cfg,
                      struct hsh_alias *aliases, int alias_count) {
     char *line;
     int status;
 
     do {
+        if (hsh_got_sigint) {
+            hsh_got_sigint = 0;
+            write(STDOUT_FILENO, "\n", 1);
+        }
+
         /* draw status bar and prompt */
         hsh_draw_statusbar(cfg);
         printf("\033[%d;%dmhsh$ \033[0m", cfg->fg, cfg->bg);
@@ -165,6 +191,7 @@ static void hsh_loop(const struct hsh_config *cfg,
 
     printf("\n");
 }
+
 
 /* script mode: run each non-comment line through hsh_run_line */
 static int hsh_run_script(FILE *f, const struct hsh_config *cfg,
@@ -214,6 +241,7 @@ static int hsh_run_script(FILE *f, const struct hsh_config *cfg,
     (void)cfg; /* cfg is unused here today, but kept for future script features */
     return 0;
 }
+
 
 /* use GNU readline for line input + history */
 static char *hsh_read_line(void) {
