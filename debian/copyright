@@ -1,6 +1,26 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: HorizonShell
 Source: https://github.com/cozmobaut-hub/HorizonShell
+Files-Excluded: bin
+Repackaged-Source: repackaged to remove binary
+ bin
+Repackaged-Source: repackaged to remove binary
+Files-Excluded: bin
+Repackaged-Source: repackaged to remove binary
+Files-Excluded: bin
+Repackaged-Source: repackaged to remove binary
+Files-Excluded: bin
+Repackaged-Source: repackaged to remove binary
+Files-Excluded: bin
+Repackaged-Source: repackaged to remove binary
+Files-Excluded: bin
+Repackaged-Source: repackaged to remove binary
+
+
+
+
+
+
 
 Files: *
 Copyright: 2024-2026, Austin Haas <cozmobaut@gmail.com>

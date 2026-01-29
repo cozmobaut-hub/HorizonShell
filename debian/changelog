@@ -1,6 +1,14 @@
-horizonshell (0.1.2) UNRELEASED; urgency=medium
+horizonshell (0.1.3-1) UNRELEASED; urgency=medium
+
+  * First non-native mentors upload.
+
+ -- Austin Haas <haustin8texas@proton.me>  Wed, 28 Jan 2026 21:14:50 -0700
+
+horizonshell (0.1.3-1) unstable; urgency=medium
 
   * Bump version for native package format.
   *  cd builtin and script mode added
+  *  fixing mentor changes
+  * First non-native release for Debian mentors.
 
- -- Austin Haas <haustin8texas@proton.me>  Wed, 28 Jan 2026 19:20:16 -0700
+ -- Austin Haas <haustin8texas@proton.me>  Wed, 28 Jan 2026 21:13:49 -0700
