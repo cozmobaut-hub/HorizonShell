@@ -5,12 +5,13 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <errno.h>
+
 #include "extras.h"
 #include "parser.h"
 
 #define HSH_MAX_TOKENS 64
 
-/* forward declarations of main.c builtins (we'll keep them in main.c) */
+/* forward declarations of main.c builtins */
 int hsh_builtin_help(char **args);
 int hsh_builtin_sys(char **args);
 int hsh_builtin_fs(char **args);
@@ -18,10 +19,14 @@ int hsh_builtin_net(char **args);
 int hsh_builtin_ps(char **args);
 int hsh_builtin_config(char **args);
 int hsh_builtin_alias(char **args);
+int hsh_builtin_cd(char **args);
 
 /* local helpers */
-static int hsh_execute(char **args);
-static int hsh_execute_pipeline(char *line);
+static int   hsh_execute(char **args);
+static int   hsh_execute_pipeline(char *line);
+static char **hsh_split_line_local(char *line);
+
+/* ----- simple tokenizer ----- */
 
 static char **hsh_split_line_local(char *line) {
     int bufsize = HSH_MAX_TOKENS, position = 0;
@@ -42,43 +47,99 @@ static char **hsh_split_line_local(char *line) {
     return tokens;
 }
 
-/* Public entry: run one line (may contain pipes) */
+/* ----- public entry: run one line (may contain pipes or () operator) ----- */
+
 int hsh_run_line(char *line) {
     if (!line)
         return 1;
 
-    /* detect pipeline */
+    /* handle pipelines first, on a copy because strtok_r mutates */
     if (strchr(line, '|') != NULL) {
-        return hsh_execute_pipeline(line);
+        char *pipe_copy = strdup(line);
+        if (!pipe_copy) {
+            perror("hsh: strdup");
+            return 1;
+        }
+        int s = hsh_execute_pipeline(pipe_copy);
+        free(pipe_copy);
+        return s;      /* currently always 1 (keep shell running) */
     }
 
-    /* no pipe: normal single-command execution */
+    /* tokenize the line */
     char *work = strdup(line);
     if (!work) {
         perror("hsh: strdup");
         return 1;
     }
+    char **tokens = hsh_split_line_local(work);
 
-    char **args = hsh_split_line_local(work);
-    int status = hsh_execute(args);
+    /* find () token */
+    int split = -1;
+    int end   = 0;
+    for (int i = 0; tokens[i] != NULL; i++) {
+        if (strcmp(tokens[i], "()") == 0)
+            split = i;
+        end = i + 1;
+    }
 
-    free(args);
+    if (split != -1) {
+        char left_buf[1024]  = {0};
+        char right_buf[1024] = {0};
+
+        /* left: tokens[0..split-1] */
+        for (int i = 0; i < split; i++) {
+            if (i > 0)
+                strncat(left_buf, " ", sizeof(left_buf) - strlen(left_buf) - 1);
+            strncat(left_buf, tokens[i], sizeof(left_buf) - strlen(left_buf) - 1);
+        }
+
+        /* right: tokens[split+1..end-1] */
+        for (int i = split + 1; i < end; i++) {
+            if (i > split + 1)
+                strncat(right_buf, " ", sizeof(right_buf) - strlen(right_buf) - 1);
+            strncat(right_buf, tokens[i], sizeof(right_buf) - strlen(right_buf) - 1);
+        }
+
+        free(tokens);
+        free(work);
+
+        int status_left = 1;
+        if (left_buf[0] != '\0')
+            status_left = hsh_run_line(left_buf);
+
+        int status_right = 1;
+        if (right_buf[0] != '\0')
+            status_right = hsh_run_line(right_buf);
+
+        /* if either side requested exit (0), propagate 0; otherwise keep running */
+        if (status_left == 0 || status_right == 0)
+            return 0;
+        return 1;
+    }
+
+    /* no () operator: normal single-command execution */
+    int status = hsh_execute(tokens);
+
+    free(tokens);
     free(work);
     return status;
 }
 
-/* ===== single-command path (no pipes) ===== */
+/* ----- single-command path (no pipes) ----- */
 
 static int hsh_execute(char **args) {
     pid_t pid;
-    int status;
+    int status = 1;
 
     if (args[0] == NULL)
         return 1;
 
     /* builtins */
     if (strcmp(args[0], "exit") == 0)
-        return 0;
+        return 0;  /* signal main loop to exit */
+
+    if (strcmp(args[0], "cd") == 0)
+        return hsh_builtin_cd(args);
 
     if (strcmp(args[0], "help") == 0)
         return hsh_builtin_help(args);
@@ -117,12 +178,17 @@ static int hsh_execute(char **args) {
             }
         } while (!WIFEXITED(status) && !WIFSIGNALED(status));
     }
+
+    /* ignore child exit code for loop control; keep shell running */
+    if (WIFEXITED(status)) {
+        (void)WEXITSTATUS(status);
+        return 1;
+    }
     return 1;
 }
 
-/* ===== pipeline path: cmd1 | cmd2 | ... ===== */
+/* ----- pipeline path: cmd1 | cmd2 | ... ----- */
 
-/* Split by '|' and execute a pipeline: cmd1 | cmd2 | ... | cmdN */
 static int hsh_execute_pipeline(char *line) {
     char *segments[HSH_MAX_TOKENS];
     int seg_count = 0;
@@ -130,9 +196,7 @@ static int hsh_execute_pipeline(char *line) {
     char *saveptr;
     char *seg = strtok_r(line, "|", &saveptr);
     while (seg && seg_count < HSH_MAX_TOKENS - 1) {
-        /* trim leading spaces */
         while (*seg == ' ' || *seg == '\t') seg++;
-        /* trim trailing spaces */
         char *end = seg + strlen(seg) - 1;
         while (end >= seg && (*end == ' ' || *end == '\t' || *end == '\n')) {
             *end = '\0';
@@ -166,7 +230,6 @@ static int hsh_execute_pipeline(char *line) {
         }
 
         if (pid == 0) {
-            /* child i */
             if (i > 0) {
                 if (dup2(pipes[i-1][0], STDIN_FILENO) < 0) {
                     perror("hsh: dup2 in");
@@ -223,5 +286,6 @@ static int hsh_execute_pipeline(char *line) {
     while (wait(&status) > 0)
         ;
 
+    /* always keep shell running after a pipeline */
     return 1;
 }

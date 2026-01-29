@@ -30,6 +30,9 @@
 #include <sys/stat.h>
 #include <errno.h>
 
+#include <readline/readline.h>
+#include <readline/history.h>
+
 #include "extras.h"
 #include "parser.h"
 
@@ -50,6 +53,7 @@ int hsh_builtin_net(char **args);
 int hsh_builtin_ps(char **args);
 int hsh_builtin_config(char **args);
 int hsh_builtin_alias(char **args);
+int hsh_builtin_cd(char **args);
 
 int main(void) {
     char *home = getenv("HOME");
@@ -107,8 +111,8 @@ static void hsh_loop(const struct hsh_config *cfg,
     int status;
 
     do {
+        /* draw status bar and prompt */
         hsh_draw_statusbar(cfg);
-
         printf("\033[%d;%dmhsh$ \033[0m", cfg->fg, cfg->bg);
         fflush(stdout);
 
@@ -145,17 +149,71 @@ static void hsh_loop(const struct hsh_config *cfg,
     printf("\n");
 }
 
+/* use GNU readline for line input + history */
 static char *hsh_read_line(void) {
-    char *line = NULL;
-    size_t bufsize = 0;
-    if (getline(&line, &bufsize, stdin) == -1) {
-        free(line);
+    /* we already printed the prompt; give readline an empty one */
+    char *line = readline("");
+    if (!line)
         return NULL;
-    }
-    return line;
+
+    if (line[0] != '\0')
+        add_history(line);
+
+    return line;  /* caller will free(line) */
 }
 
 /* ====== BUILTINS (used by parser.c) ====== */
+
+int hsh_builtin_cd(char **args) {
+    char *target = NULL;
+
+    if (args[1] == NULL || strcmp(args[1], "~") == 0) {
+        /* cd or cd ~ -> HOME */
+        target = getenv("HOME");
+        if (!target) {
+            fprintf(stderr, "cd: HOME not set\n");
+            return 1;
+        }
+    } else if (args[1][0] == '~') {
+        /* handle things like ~/foo */
+        char *home = getenv("HOME");
+        if (!home) {
+            fprintf(stderr, "cd: HOME not set\n");
+            return 1;
+        }
+        size_t len = strlen(home) + strlen(args[1]); /* ~ is replaced by home */
+        char *buf = malloc(len);
+        if (!buf) {
+            perror("cd");
+            return 1;
+        }
+        snprintf(buf, len, "%s%s", home, args[1] + 1);
+        int rc = chdir(buf);
+        free(buf);
+        if (rc != 0) {
+            perror("cd");
+            return 1;
+        }
+        return 1;
+    } else if (args[1][0] == '$') {
+        /* cd $VAR */
+        const char *var = args[1] + 1;
+        target = getenv(var);
+        if (!target || target[0] == '\0') {
+            fprintf(stderr, "cd: %s not set or empty\n", args[1]);
+            return 1;
+        }
+    } else {
+        target = args[1];
+    }
+
+    if (chdir(target) != 0) {
+        perror("cd");
+        return 1;
+    }
+
+    return 1;
+}
 
 int hsh_builtin_help(char **args) {
     if (args[1] == NULL) {
@@ -165,6 +223,7 @@ int hsh_builtin_help(char **args) {
         printf("Builtins:\n");
         printf("  help [name]        - show this help or details about a builtin\n");
         printf("  exit               - exit %s\n", HSH_NAME);
+        printf("  cd [dir]           - change directory\n");
         printf("  config             - edit HorizonShell config file\n");
         printf("  alias [name value] - manage command aliases\n\n");
 
@@ -227,6 +286,12 @@ int hsh_builtin_help(char **args) {
         printf("  alias              - show where aliases are stored and usage\n");
         printf("  alias name value   - append an alias (name -> value) to aliases file\n");
         printf("                       HSH reloads aliases on startup.\n");
+        return 1;
+    } else if (strcmp(args[1], "cd") == 0) {
+        printf("cd: change the current working directory\n");
+        printf("  cd [dir]           - change to dir, or $HOME if omitted\n");
+        printf("  cd ~               - change to $HOME\n");
+        printf("  cd $VAR            - change to directory in environment variable VAR\n");
         return 1;
     }
 

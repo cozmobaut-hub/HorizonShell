@@ -19,7 +19,8 @@ HSH_SETUPBIN := $(BIN_DIR)/hsh-setup
 all: $(HSH_BIN) $(HSH_SETUPBIN)
 
 $(HSH_BIN): $(OBJS) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $(OBJS) -lreadline
+
 
 $(HSH_SETUPBIN): $(SETUP_OBJS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $(SETUP_OBJS)
