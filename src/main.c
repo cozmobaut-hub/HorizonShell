@@ -21,7 +21,6 @@
  * THE SOFTWARE.
  */
 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,7 +37,6 @@
 #include "extras.h"
 #include "parser.h"
 
-
 #define HSH_NAME    "HorizonShell"
 #define HSH_VERSION "0.1.0"
 
@@ -53,10 +51,8 @@ static void hsh_sigint_handler(int sig) {
 
 static void hsh_loop(const struct hsh_config *cfg,
                      struct hsh_alias *aliases, int alias_count);
-static char *hsh_read_line(void);
 static int  hsh_run_script(FILE *f, const struct hsh_config *cfg,
                            struct hsh_alias *aliases, int alias_count);
-
 
 /* builtin handlers (used by parser.c via extern prototypes there) */
 int hsh_builtin_help(char **args);
@@ -67,7 +63,6 @@ int hsh_builtin_ps(char **args);
 int hsh_builtin_config(char **args);
 int hsh_builtin_alias(char **args);
 int hsh_builtin_cd(char **args);
-
 
 int main(int argc, char **argv) {
     char *home = getenv("HOME");
@@ -142,7 +137,6 @@ int main(int argc, char **argv) {
     return 0;
 }
 
-
 static void hsh_loop(const struct hsh_config *cfg,
                      struct hsh_alias *aliases, int alias_count) {
     char *line;
@@ -154,14 +148,20 @@ static void hsh_loop(const struct hsh_config *cfg,
             write(STDOUT_FILENO, "\n", 1);
         }
 
-        /* draw status bar and prompt */
+        /* draw status bar first */
         hsh_draw_statusbar(cfg);
-        printf("\033[%d;%dmhsh$ \033[0m", cfg->fg, cfg->bg);
-        fflush(stdout);
 
-        line = hsh_read_line();
+        /* let readline own the prompt so backspace doesn't delete it */
+        char prompt[64];
+        snprintf(prompt, sizeof(prompt),
+                 "\033[%d;%dmhsh$ \033[0m", cfg->fg, cfg->bg);
+
+        line = readline(prompt);
         if (!line)
             break;
+
+        if (line[0] != '\0')
+            add_history(line);
 
         /* alias expansion on first word only */
         char *expanded = NULL;
@@ -191,7 +191,6 @@ static void hsh_loop(const struct hsh_config *cfg,
 
     printf("\n");
 }
-
 
 /* script mode: run each non-comment line through hsh_run_line */
 static int hsh_run_script(FILE *f, const struct hsh_config *cfg,
@@ -240,20 +239,6 @@ static int hsh_run_script(FILE *f, const struct hsh_config *cfg,
     free(line);
     (void)cfg; /* cfg is unused here today, but kept for future script features */
     return 0;
-}
-
-
-/* use GNU readline for line input + history */
-static char *hsh_read_line(void) {
-    /* we already printed the prompt; give readline an empty one */
-    char *line = readline("");
-    if (!line)
-        return NULL;
-
-    if (line[0] != '\0')
-        add_history(line);
-
-    return line;  /* caller will free(line) */
 }
 
 /* ====== BUILTINS (used by parser.c) ====== */
