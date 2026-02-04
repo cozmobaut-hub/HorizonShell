@@ -8,6 +8,7 @@
  *   - Simple pipelines with '|'
  * Returns 0 to exit shell, 1 to continue.
  */
-int hsh_run_line(char *line);
+int hsh_run_line(char *line, int *last_status_out);
+
 
 #endif

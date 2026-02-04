@@ -20,6 +20,7 @@ void hsh_draw_statusbar(const struct hsh_config *cfg);
 
 /* alias functions */
 int  hsh_load_aliases(const char *path, struct hsh_alias **aliases, int *count);
+int hsh_builtin_lang(char **args);
 void hsh_free_aliases(struct hsh_alias *aliases, int count);
 char *hsh_expand_alias(struct hsh_alias *aliases, int count, const char *cmd);
 

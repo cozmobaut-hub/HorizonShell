@@ -36,11 +36,12 @@
 
 #include "extras.h"
 #include "parser.h"
+#include "lang.h"
 
 #define HSH_NAME    "HorizonShell"
 #define HSH_VERSION "0.1.0"
 
-#define HSH_MAX_LINE   1024
+#define HSH_MAX_LINE    1024
 
 static volatile sig_atomic_t hsh_got_sigint = 0;
 
@@ -63,6 +64,8 @@ int hsh_builtin_ps(char **args);
 int hsh_builtin_config(char **args);
 int hsh_builtin_alias(char **args);
 int hsh_builtin_cd(char **args);
+
+/* ===== main ===== */
 
 int main(int argc, char **argv) {
     char *home = getenv("HOME");
@@ -137,6 +140,8 @@ int main(int argc, char **argv) {
     return 0;
 }
 
+/* ===== interactive loop ===== */
+
 static void hsh_loop(const struct hsh_config *cfg,
                      struct hsh_alias *aliases, int alias_count) {
     char *line;
@@ -184,6 +189,7 @@ static void hsh_loop(const struct hsh_config *cfg,
             line = expanded;
         }
 
+        /* Normal shell parsing; lang is available as a builtin */
         status = hsh_run_line(line);
 
         free(line);
@@ -192,7 +198,8 @@ static void hsh_loop(const struct hsh_config *cfg,
     printf("\n");
 }
 
-/* script mode: run each non-comment line through hsh_run_line */
+/* ===== script mode: run each non-comment line through shell ===== */
+
 static int hsh_run_script(FILE *f, const struct hsh_config *cfg,
                           struct hsh_alias *aliases, int alias_count) {
     char *line = NULL;
@@ -237,7 +244,7 @@ static int hsh_run_script(FILE *f, const struct hsh_config *cfg,
     }
 
     free(line);
-    (void)cfg; /* cfg is unused here today, but kept for future script features */
+    (void)cfg; /* cfg kept for future script features */
     return 0;
 }
 

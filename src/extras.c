@@ -1,13 +1,16 @@
-// extras.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include "extras.h"
+#include "lang.h"
 
 /* Simple state for CPU usage between calls */
 static unsigned long long last_total_jiffies = 0;
 static unsigned long long last_work_jiffies = 0;
+
+/* builtin implemented in hsh_lang.c */
+int hsh_builtin_lang(char **args);
 
 int hsh_load_config(const char *path, struct hsh_config *cfg) {
     FILE *f = fopen(path, "r");
@@ -177,7 +180,6 @@ int hsh_load_aliases(const char *path, struct hsh_alias **aliases, int *count) {
                 if (!tmp) {
                     perror("hsh: realloc aliases");
                     fclose(f);
-                    /* free what we have and abort */
                     if (list) {
                         for (int i = 0; i < n; i++) {
                             free(list[i].name);

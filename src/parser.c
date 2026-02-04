@@ -20,10 +20,11 @@ int hsh_builtin_ps(char **args);
 int hsh_builtin_config(char **args);
 int hsh_builtin_alias(char **args);
 int hsh_builtin_cd(char **args);
+int hsh_builtin_lang(char **args);
 
 /* local helpers */
-static int   hsh_execute(char **args);
-static int   hsh_execute_pipeline(char *line);
+static int   hsh_execute(char **args, int *cmd_status_out);
+static int   hsh_execute_pipeline(char *line, int *cmd_status_out);
 static char **hsh_split_line_local(char *line);
 
 /* ----- simple tokenizer ----- */
@@ -47,42 +48,60 @@ static char **hsh_split_line_local(char *line) {
     return tokens;
 }
 
-/* ----- public entry: run one line (may contain pipes or () operator) ----- */
+/* ----- public entry: run one line (may contain pipes or () / )( operator) ----- */
 
-int hsh_run_line(char *line) {
-    if (!line)
+int hsh_run_line(char *line, int *last_status_out) {
+    int dummy_status = 0;
+    if (!last_status_out)
+        last_status_out = &dummy_status;
+
+    if (!line) {
+        *last_status_out = 0;
         return 1;
+    }
 
     /* handle pipelines first, on a copy because strtok_r mutates */
     if (strchr(line, '|') != NULL) {
         char *pipe_copy = strdup(line);
         if (!pipe_copy) {
             perror("hsh: strdup");
+            *last_status_out = 1;
             return 1;
         }
-        int s = hsh_execute_pipeline(pipe_copy);
+        int s = hsh_execute_pipeline(pipe_copy, last_status_out);
         free(pipe_copy);
-        return s;      /* currently always 1 (keep shell running) */
+        return s;      /* 0 = exit shell, 1 = keep running */
     }
 
     /* tokenize the line */
     char *work = strdup(line);
     if (!work) {
         perror("hsh: strdup");
+        *last_status_out = 1;
         return 1;
     }
     char **tokens = hsh_split_line_local(work);
 
-    /* find () token */
+    /* find () or )( token, but NOT for lang ... lines */
     int split = -1;
     int end   = 0;
+    int is_lang = (tokens[0] && strcmp(tokens[0], "lang") == 0);
+    enum { OP_NONE, OP_BOTH, OP_ON_ERROR } op_kind = OP_NONE;
+
     for (int i = 0; tokens[i] != NULL; i++) {
-        if (strcmp(tokens[i], "()") == 0)
-            split = i;
+        if (!is_lang) {
+            if (strcmp(tokens[i], "()") == 0) {
+                split   = i;
+                op_kind = OP_BOTH;
+            } else if (strcmp(tokens[i], ")(") == 0) {
+                split   = i;
+                op_kind = OP_ON_ERROR;
+            }
+        }
         end = i + 1;
     }
 
-    if (split != -1) {
+    if (split != -1 && op_kind != OP_NONE) {
         char left_buf[1024]  = {0};
         char right_buf[1024] = {0};
 
@@ -103,64 +122,104 @@ int hsh_run_line(char *line) {
         free(tokens);
         free(work);
 
-        int status_left = 1;
+        int status_left = 0;  /* command exit code */
+        int status_right = 0;
+
+        int shell_status_left  = 1;
+        int shell_status_right = 1;
+
         if (left_buf[0] != '\0')
-            status_left = hsh_run_line(left_buf);
+            shell_status_left = hsh_run_line(left_buf, &status_left);
 
-        int status_right = 1;
-        if (right_buf[0] != '\0')
-            status_right = hsh_run_line(right_buf);
+        if (op_kind == OP_BOTH) {
+            /* () : always run right */
+            if (right_buf[0] != '\0')
+                shell_status_right = hsh_run_line(right_buf, &status_right);
+        } else if (op_kind == OP_ON_ERROR) {
+            /* )( : only run right if left failed (non-zero exit code) */
+            if (status_left != 0 && right_buf[0] != '\0')
+                shell_status_right = hsh_run_line(right_buf, &status_right);
+        }
 
-        /* if either side requested exit (0), propagate 0; otherwise keep running */
-        if (status_left == 0 || status_right == 0)
+        /* propagate last command's exit code */
+        *last_status_out = (shell_status_right == 0 ? status_right : status_left);
+
+        /* if either side requested shell exit (0), propagate 0; otherwise keep running */
+        if (shell_status_left == 0 || shell_status_right == 0)
             return 0;
         return 1;
     }
 
-    /* no () operator: normal single-command execution */
-    int status = hsh_execute(tokens);
+    /* no ()/)( operator: normal single-command execution */
+    int shell_status = hsh_execute(tokens, last_status_out);
 
     free(tokens);
     free(work);
-    return status;
+    return shell_status;
 }
 
 /* ----- single-command path (no pipes) ----- */
 
-static int hsh_execute(char **args) {
+static int hsh_execute(char **args, int *cmd_status_out) {
     pid_t pid;
-    int status = 1;
+    int status = 0;
 
-    if (args[0] == NULL)
+    if (!cmd_status_out)
+        cmd_status_out = &status;
+
+    if (args[0] == NULL) {
+        *cmd_status_out = 0;
         return 1;
+    }
 
     /* builtins */
     if (strcmp(args[0], "exit") == 0)
         return 0;  /* signal main loop to exit */
 
-    if (strcmp(args[0], "cd") == 0)
-        return hsh_builtin_cd(args);
+    if (strcmp(args[0], "cd") == 0) {
+        *cmd_status_out = hsh_builtin_cd(args);
+        return 1;
+    }
 
-    if (strcmp(args[0], "help") == 0)
-        return hsh_builtin_help(args);
+    if (strcmp(args[0], "help") == 0) {
+        *cmd_status_out = hsh_builtin_help(args);
+        return 1;
+    }
 
-    if (strcmp(args[0], "config") == 0)
-        return hsh_builtin_config(args);
+    if (strcmp(args[0], "config") == 0) {
+        *cmd_status_out = hsh_builtin_config(args);
+        return 1;
+    }
 
-    if (strcmp(args[0], "alias") == 0)
-        return hsh_builtin_alias(args);
+    if (strcmp(args[0], "alias") == 0) {
+        *cmd_status_out = hsh_builtin_alias(args);
+        return 1;
+    }
 
-    if (strcmp(args[0], "sys") == 0)
-        return hsh_builtin_sys(args);
+    if (strcmp(args[0], "sys") == 0) {
+        *cmd_status_out = hsh_builtin_sys(args);
+        return 1;
+    }
 
-    if (strcmp(args[0], "fs") == 0)
-        return hsh_builtin_fs(args);
+    if (strcmp(args[0], "fs") == 0) {
+        *cmd_status_out = hsh_builtin_fs(args);
+        return 1;
+    }
 
-    if (strcmp(args[0], "net") == 0)
-        return hsh_builtin_net(args);
+    if (strcmp(args[0], "net") == 0) {
+        *cmd_status_out = hsh_builtin_net(args);
+        return 1;
+    }
 
-    if (strcmp(args[0], "ps") == 0)
-        return hsh_builtin_ps(args);
+    if (strcmp(args[0], "ps") == 0) {
+        *cmd_status_out = hsh_builtin_ps(args);
+        return 1;
+    }
+
+    if (strcmp(args[0], "lang") == 0) {
+        *cmd_status_out = hsh_builtin_lang(args);
+        return 1;
+    }
 
     /* external command */
     pid = fork();
@@ -170,26 +229,28 @@ static int hsh_execute(char **args) {
         exit(EXIT_FAILURE);
     } else if (pid < 0) {
         perror("hsh: fork");
+        *cmd_status_out = 1;
     } else {
         do {
             if (waitpid(pid, &status, 0) == -1) {
                 perror("hsh: waitpid");
+                status = 1;
                 break;
             }
         } while (!WIFEXITED(status) && !WIFSIGNALED(status));
+
+        if (WIFEXITED(status))
+            *cmd_status_out = WEXITSTATUS(status);
+        else
+            *cmd_status_out = 1;
     }
 
-    /* ignore child exit code for loop control; keep shell running */
-    if (WIFEXITED(status)) {
-        (void)WEXITSTATUS(status);
-        return 1;
-    }
-    return 1;
+    return 1;  /* keep shell running */
 }
 
 /* ----- pipeline path: cmd1 | cmd2 | ... ----- */
 
-static int hsh_execute_pipeline(char *line) {
+static int hsh_execute_pipeline(char *line, int *cmd_status_out) {
     char *segments[HSH_MAX_TOKENS];
     int seg_count = 0;
 
@@ -209,8 +270,10 @@ static int hsh_execute_pipeline(char *line) {
     }
     segments[seg_count] = NULL;
 
-    if (seg_count == 0)
+    if (seg_count == 0) {
+        if (cmd_status_out) *cmd_status_out = 0;
         return 1;
+    }
 
     int num_cmds = seg_count;
     int pipes[HSH_MAX_TOKENS][2];
@@ -218,6 +281,7 @@ static int hsh_execute_pipeline(char *line) {
     for (int i = 0; i < num_cmds - 1; i++) {
         if (pipe(pipes[i]) < 0) {
             perror("hsh: pipe");
+            if (cmd_status_out) *cmd_status_out = 1;
             return 1;
         }
     }
@@ -226,6 +290,7 @@ static int hsh_execute_pipeline(char *line) {
         pid_t pid = fork();
         if (pid < 0) {
             perror("hsh: fork");
+            if (cmd_status_out) *cmd_status_out = 1;
             return 1;
         }
 
@@ -282,10 +347,15 @@ static int hsh_execute_pipeline(char *line) {
         close(pipes[i][1]);
     }
 
-    int status;
-    while (wait(&status) > 0)
-        ;
+    int status = 0;
+    int last_status = 0;
+    while (wait(&status) > 0) {
+        if (WIFEXITED(status))
+            last_status = WEXITSTATUS(status);
+        else
+            last_status = 1;
+    }
 
-    /* always keep shell running after a pipeline */
+    if (cmd_status_out) *cmd_status_out = last_status;
     return 1;
 }
