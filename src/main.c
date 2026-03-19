@@ -21,6 +21,7 @@
  * THE SOFTWARE.
  */
 
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -64,6 +65,7 @@ int hsh_builtin_ps(char **args);
 int hsh_builtin_config(char **args);
 int hsh_builtin_alias(char **args);
 int hsh_builtin_cd(char **args);
+
 
 /* ===== main ===== */
 
@@ -140,6 +142,7 @@ int main(int argc, char **argv) {
     return 0;
 }
 
+
 /* ===== interactive loop ===== */
 
 static void hsh_loop(const struct hsh_config *cfg,
@@ -190,13 +193,14 @@ static void hsh_loop(const struct hsh_config *cfg,
         }
 
         /* Normal shell parsing; lang is available as a builtin */
-        status = hsh_run_line(line);
+        status = hsh_run_line(line, &status);
 
         free(line);
     } while (status);
 
     printf("\n");
 }
+
 
 /* ===== script mode: run each non-comment line through shell ===== */
 
@@ -234,7 +238,7 @@ static int hsh_run_script(FILE *f, const struct hsh_config *cfg,
             exec_line = expanded;
         }
 
-        status = hsh_run_line(exec_line);
+        status = hsh_run_line(exec_line, &status);
 
         if (expanded)
             free(expanded);
@@ -247,6 +251,7 @@ static int hsh_run_script(FILE *f, const struct hsh_config *cfg,
     (void)cfg; /* cfg kept for future script features */
     return 0;
 }
+
 
 /* ====== BUILTINS (used by parser.c) ====== */
 
@@ -300,6 +305,7 @@ int hsh_builtin_cd(char **args) {
 
     return 1;
 }
+
 
 int hsh_builtin_help(char **args) {
     if (args[1] == NULL) {
@@ -388,6 +394,7 @@ int hsh_builtin_help(char **args) {
     printf("help: no detailed help for '%s' yet.\n", args[1]);
     return 1;
 }
+
 
 int hsh_builtin_sys(char **args) {
     char *home = getenv("HOME");
@@ -479,6 +486,7 @@ int hsh_builtin_sys(char **args) {
     return 1;
 }
 
+
 int hsh_builtin_fs(char **args) {
     if (args[1] == NULL || strcmp(args[1], "tree") == 0) {
         const char *path = ".";
@@ -508,6 +516,7 @@ int hsh_builtin_fs(char **args) {
     return 1;
 }
 
+
 int hsh_builtin_net(char **args) {
     if (args[1] == NULL || strcmp(args[1], "ip") == 0) {
         printf("=== IP addresses ===\n");
@@ -529,6 +538,7 @@ int hsh_builtin_net(char **args) {
     printf("net: unknown subcommand '%s'\n", args[1]);
     return 1;
 }
+
 
 int hsh_builtin_ps(char **args) {
     if (args[1] == NULL || strcmp(args[1], "top") == 0) {
@@ -552,6 +562,7 @@ int hsh_builtin_ps(char **args) {
     printf("ps: unknown subcommand '%s'\n", args[1]);
     return 1;
 }
+
 
 int hsh_builtin_config(char **args) {
     (void)args;
@@ -618,6 +629,7 @@ int hsh_builtin_config(char **args) {
     printf("Done editing. Changes take effect next time you start hsh (or after reload).\n");
     return 1;
 }
+
 
 int hsh_builtin_alias(char **args) {
     char *home = getenv("HOME");
