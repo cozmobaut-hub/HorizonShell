@@ -17,15 +17,24 @@ int main(void) {
         return 1;
     }
 
+    char config_root[512];
     char confdir[512];
     char confpath[512];
 
-    snprintf(confdir, sizeof(confdir), "%s/.config/hsh", home);
-    snprintf(confpath, sizeof(confpath), "%s/config", confdir);
+    /* ~/.config and ~/.config/hsh */
+    snprintf(config_root, sizeof(config_root), "%s/.config", home);
+    snprintf(confdir,      sizeof(confdir),      "%s/hsh",    config_root);
+    snprintf(confpath,     sizeof(confpath),     "%s/config", confdir);
 
-    /* ensure config dir exists */
+    /* ensure ~/.config exists */
+    if (mkdir(config_root, 0755) && errno != EEXIST) {
+        perror("hsh-setup: mkdir ~/.config");
+        return 1;
+    }
+
+    /* ensure ~/.config/hsh exists */
     if (mkdir(confdir, 0755) && errno != EEXIST) {
-        perror("hsh-setup: mkdir");
+        perror("hsh-setup: mkdir ~/.config/hsh");
         return 1;
     }
 
