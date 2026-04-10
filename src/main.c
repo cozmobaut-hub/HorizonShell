@@ -108,7 +108,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    /* load aliases (no error if file missing) */
+    /* load aliases */
     if (hsh_load_aliases(aliaspath, &aliases, &alias_count) != 0) {
         fprintf(stderr, "hsh: failed to load aliases\n");
     }
